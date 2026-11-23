@@ -22,6 +22,13 @@
 namespace rad {
 namespace server {
 
+/* The name that always turns the control vector on, whatever model is loaded and whether or not
+ * A multi-model front strips `base:` from it, so a
+ * client sends `MODEL:control-vector`; on a one-model process the bare name is the same request.
+ * The server lists it as a child of the model whenever a vector is loaded, and a request that
+ * names it on a deployment with none is refused by name, not served the stock model. */
+constexpr const char* kControlVectorName = "control-vector";
+
 /* ------------------------------------------------------------------ construction */
 
 Server::Server(const Deps& d, const ServerOptions& o)
@@ -490,10 +497,9 @@ int Server::submit_all(const OaiRequest& r, std::vector<Generation>* gens, ApiEr
         }
     }
 
-    /* The control-vector variant is a name of the served model, not an adapter: it takes no
-     * slot. */
-    const bool variant =
-        !opt_.control_vector_variant.empty() && r.model == opt_.control_vector_variant;
+    /* `control-vector` is a name of the served model, not an adapter: it takes no slot. It is
+     * the vector's own name, reserved, and needs no flag. */
+    const bool variant = r.model == kControlVectorName;
 
     /* Runtime LoRA: `model` picks the adapter. The served model's own name, or no name, is the
      * base; with adapters enabled anything else must be a loaded adapter, since a typo served by
@@ -516,16 +522,16 @@ int Server::submit_all(const OaiRequest& r, std::vector<Generation>* gens, ApiEr
         }
     }
 
-    /* The control vector: the variant's name turns it on, else the request's own choice, else the
-     * deployment's runtime default. The variant's name with an explicit `false` is refused rather
-     * than served either way, since the request asks for both. A deployment with no vector refuses
-     * the on state by name rather than serve the stock model. */
+    /* The control vector: the reserved name turns it on, else the request's own choice, else the
+     * deployment's runtime default. That name with an explicit `false` is refused rather than
+     * served either way, since the request asks for both. A deployment with no vector refuses the
+     * on state by name rather than serve the stock model. */
     bool projection_on = false;
     {
         const bool named = r.control_vector >= 0;
         if (variant && named && r.control_vector == 0) {
             *err = err_bad("control_vector",
-                           "is false, but model '" + r.model + "' is the control-vector variant, "
+                           "is false, but model '" + r.model + "' is the control-vector name, "
                            "which runs with the vector on; send one or the other");
             return RAD_E_INVAL;
         }
@@ -2316,7 +2322,11 @@ HttpResponse Server::handle_models(const HttpRequest& req) {
     std::vector<std::string> adapters;
     if (opt_.lora_names) adapters = opt_.lora_names();
     const bool is_adapter = !id.empty() && std::find(adapters.begin(), adapters.end(), id) != adapters.end();
-    const bool is_variant = !id.empty() && id == opt_.control_vector_variant;
+    /* `control-vector` needs no flag, and it does not exist unless a package is loaded, so a
+     * deployment without one advertises no such name. */
+    const bool vector_loaded =
+        deps_.control_vector.available && deps_.control_vector.available();
+    const bool is_variant = !id.empty() && vector_loaded && id == kControlVectorName;
     if (!id.empty() && id != opt_.model_id && !is_adapter && !is_variant) {
         ApiError e;
         e.status = 404;
@@ -2340,14 +2350,15 @@ HttpResponse Server::handle_models(const HttpRequest& req) {
     c.capabilities = capabilities().dump();
     metrics_.observe_http(200);
     std::vector<ModelCard> cards{ c };
-    /* The control-vector variant is listed as a child of the model, as an adapter is, so the front
-     * names it `base:name` and a client that only picks a model can find it. */
-    if (!opt_.control_vector_variant.empty()) {
+    /* The control-vector names are listed as children of the model, as an adapter is, so the front
+     * names them `base:name` and a client that only picks a model can find them. `control-vector`
+     * is there whenever a package is loaded. */
+    if (vector_loaded) {
         ModelCard vc = c;
-        vc.id = opt_.control_vector_variant;
+        vc.id = kControlVectorName;
         vc.parent = opt_.model_id;
         cards.push_back(vc);
-        if (is_variant) return HttpResponse::json_body(200, model_body(vc));
+        if (is_variant && id == vc.id) return HttpResponse::json_body(200, model_body(vc));
     }
     for (const std::string& a : adapters) {
         ModelCard ac = c;
@@ -2407,10 +2418,10 @@ HttpResponse Server::handle_lora_admin(const HttpRequest& req, bool load) {
     const std::string name = j["lora_name"].get<std::string>();
     if (name.empty() || name == opt_.model_id)
         return fail(400, "invalid_request_error", "lora_name must be non-empty and not the served model's name");
-    if (load && !opt_.control_vector_variant.empty() && name == opt_.control_vector_variant)
+    if (load && name == kControlVectorName)
         return fail(400, "invalid_request_error",
-                    "lora_name '" + name + "' is this model's control-vector variant "
-                    "(--control-vector-variant), so a request naming it could mean either");
+                    "lora_name '" + name + "' is the reserved control-vector name, so a request "
+                    "naming it could mean either");
     std::string err;
     int s;
     int in_flight = 0;

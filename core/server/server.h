@@ -194,10 +194,6 @@ struct ServerOptions {
      * of an adapter requests still use drains it: RAD_OK with *in_flight > 0 (Engine::lora_unload). */
     std::function<int(const std::string&, const std::string&, std::string*)> lora_load;
     std::function<int(const std::string&, std::string*, int*)>              lora_unload;
-    /* --control-vector-variant: the name whose requests run with the control vector on, as the
-     * server sees it (the front strips `base:` from it as from an adapter's). Empty: no such
-     * name. */
-    std::string control_vector_variant;
     /* A generator's adapters (Engine::gen_lora_acquire): the images and videos endpoints' `loras`
      * and <lora:...> tags get a slot holding that combination, a hold on it and a note on what was
      * left out; `gen_lora_names` is GET /v1/loras. Unset without adapters. */

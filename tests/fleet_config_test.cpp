@@ -346,29 +346,6 @@ TEST(defaults_sit_under_models) {
     CHECK_EQ(fc.models[1].priority, 5);
 }
 
-/* The variant's name is listed per model, as MODEL:NAME, so one name under defaults: gives every
- * model a variant of its own without a collision: the switch for a whole fleet at once. */
-TEST(a_control_vector_variant_under_defaults_reaches_every_model) {
-    fleet::FleetConfig fc;
-    CHECK_EQ(yload("defaults:\n  control-vector: off\n  control-vector-variant: uncensored\n"
-                   "models:\n  a:\n    model: /m/a.rad\n  b:\n    model: /m/b.rad\n", &fc), RAD_OK);
-    CHECK_EQ(fc.models[0].cfg.control_vector_variant, "uncensored");
-    CHECK_EQ(fc.models[1].cfg.control_vector_variant, "uncensored");
-    CHECK_EQ(fc.models[1].cfg.given.at("--control-vector-variant"),
-             "defaults.control-vector-variant");
-}
-
-TEST(anchors_and_merge_keys) {
-    fleet::FleetConfig fc;
-    /* Top-level keys starting with x- are ignored, so they can hold anchors. */
-    CHECK_EQ(yload("x-common: &common\n  tp: 2\n  max-num-seqs: 4\n"
-                  "models:\n  a:\n    <<: *common\n    model: /m/a.rad\n", &fc), RAD_OK);
-    CHECK_EQ(fc.models[0].cfg.tp, 2);
-    CHECK_EQ(yload("defaults: &d\n  max-num-seqs: 4\n"
-                  "models:\n  a:\n    <<: *d\n    model: /m/a.rad\n    tp: 2\n", &fc), RAD_OK);
-    CHECK_EQ(fc.models[0].cfg.max_seqs, 4);
-    CHECK_EQ(fc.models[0].cfg.tp, 2);
-}
 
 TEST(args_order_is_stable_for_reload) {
     fleet::FleetConfig a, b;

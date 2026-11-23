@@ -253,8 +253,8 @@ stays until it expires, as a video kept by its server does.
 ### 5.3 Adapters
 
 LoRA adapters are addressed `base:adapter`. `/v1/load_lora_adapter` takes `base` explicitly. The
-`:` is reserved in model names and aliases. A model's control-vector variant
-(`control-vector-variant`, GUIDE §4.10) is addressed and listed the same way, `base:NAME`.
+`:` is reserved in model names and aliases. The control vector is addressed the same way,
+`base:control-vector` (GUIDE §4.10), and listed in `/v1/models` as a child of the model.
 
 ### 5.4 Fleet-wide routes
 

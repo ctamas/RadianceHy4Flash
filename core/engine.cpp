@@ -3641,13 +3641,6 @@ int Engine::run_server() {
     o.plugin_words = ranks_.empty() ? 0 : ranks_[0]->program.plugin_words;
     o.model_id = !cfg_.served_model_name.empty() ? cfg_.served_model_name
                : meta_.name && *meta_.name       ? meta_.name : "radiance";
-    o.control_vector_variant = cfg_.control_vector_variant;
-    if (!o.control_vector_variant.empty() && o.control_vector_variant == o.model_id) {
-        RAD_ERR("--control-vector-variant '%s' is the served model's own name, so a request "
-                "naming it would run the default; rename it or give --served-model-name",
-                o.model_id.c_str());
-        return RAD_E_INVAL;
-    }
     o.host     = cfg_.host;
     o.port     = cfg_.port;
     o.api_key  = cfg_.api_key;
